@@ -1,0 +1,1686 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>지역별 환경보건 취약지수 시각화 맵</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Pretendard", "Pretendard Variable", "Noto Sans KR", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 18px;
+      color: #111827;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.28);
+      min-height: calc(100vh - 36px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      padding: 26px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+    }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .header-text { min-width: 0; }
+    .header h1 { font-size: 22px; letter-spacing: -0.2px; margin-bottom: 6px; }
+    .header p { opacity: 0.92; font-size: 14px; line-height: 1.4; }
+
+    .header-logo {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 6px 10px; border-radius: 12px;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.18);
+      text-decoration: none;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      flex-shrink: 0;
+    }
+    .header-logo:hover {
+      background: rgba(255,255,255,0.22);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 18px rgba(0,0,0,0.18);
+    }
+    .header-logo img { height: 34px; width: auto; display: block; }
+
+    .content { flex: 1; display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+
+    .panel {
+      padding: 18px; background: #f8f9fa;
+      border-right: 1px solid #e9ecef;
+      min-height: 0; overflow-y: auto;
+    }
+    .panel-card {
+      background: #fff; border: 1px solid #e9ecef;
+      border-radius: 12px; padding: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+      margin-bottom: 14px;
+    }
+    .label { display: block; font-weight: 700; font-size: 13px; color: #374151; margin: 10px 0 8px; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    select, button { height: 42px; border-radius: 10px; font-size: 14px; }
+    select {
+      width: 100%; padding: 0 12px;
+      border: 2px solid #667eea; background: #fff; color: #111827;
+      outline: none; cursor: pointer;
+      transition: all .22s ease;
+    }
+    select:hover { border-color: #764ba2; box-shadow: 0 2px 10px rgba(102,126,234,0.25); }
+    select:focus { border-color: #764ba2; box-shadow: 0 0 0 4px rgba(118,75,162,0.15); }
+
+    .btn {
+      width: 100%; border: none; cursor: pointer;
+      font-weight: 800; color: #fff; background: #667eea;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .btn:hover { background: #764ba2; transform: translateY(-1px); box-shadow: 0 10px 18px rgba(102,126,234,0.28); }
+    .btn:active { transform: translateY(0); box-shadow: none; }
+
+    #exportBtn { background: #10b981; }
+    #exportBtn:hover { background: #059669; box-shadow: 0 10px 18px rgba(16,185,129,0.28); }
+    #vulnerabilityBtn { background: #ef4444; }
+    #vulnerabilityBtn:hover { background: #dc2626; box-shadow: 0 10px 18px rgba(239,68,68,0.28); }
+    #chartBtn { background: #f59e0b; }
+    #chartBtn:hover { background: #d97706; box-shadow: 0 10px 18px rgba(245,158,11,0.28); }
+
+    .toggle-container { margin-top: 14px; display: flex; align-items: center; gap: 12px; }
+    .toggle-label { font-weight: 700; font-size: 13px; color: #374151; }
+    .toggle-switch {
+      position: relative; width: 52px; height: 28px;
+      background: #e5e7eb; border-radius: 14px; cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .toggle-switch.active { background: #667eea; }
+    .toggle-knob {
+      position: absolute; top: 3px; left: 3px;
+      width: 22px; height: 22px; background: #fff;
+      border-radius: 50%; transition: transform 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .toggle-switch.active .toggle-knob { transform: translateX(24px); }
+    .toggle-status { font-size: 12px; color: #6b7280; font-weight: 600; }
+
+    .hint { margin-top: 12px; font-size: 12.5px; color: #6b7280; line-height: 1.45; }
+    .pill {
+      display: inline-block; padding: 3px 8px; border-radius: 999px;
+      background: rgba(102,126,234,0.12); color: #4f46e5;
+      font-weight: 700; font-size: 12px; margin-right: 6px;
+    }
+
+    /* ── 유의사항 카드 ─────────────────────────────── */
+    .pill-warn { background: rgba(180,83,9,0.12); color: #b45309; }
+    .notice-card { border-left: 3px solid #f59e0b; background: #fffbeb; }
+    .notice-block { margin-top: 10px; }
+    .notice-block:first-of-type { margin-top: 4px; }
+    .notice-h {
+      font-size: 12.5px; font-weight: 800; color: #92400e; margin-bottom: 3px;
+    }
+    .notice-b {
+      font-size: 11.5px; color: #6b7280; line-height: 1.5;
+    }
+    .notice-b b { color: #4b5563; }
+    .notice-b code {
+      background: rgba(180,83,9,0.10); color: #b45309; padding: 1px 4px;
+      border-radius: 4px; font-size: 11px;
+    }
+
+    .map-wrap { padding: 16px; background: #fff; min-height: 0; }
+    #map {
+      width: 100%; height: 100%; min-height: 520px;
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .footer {
+      padding: 14px 18px; text-align: center;
+      color: #6b7280; background: #f8f9fa;
+      border-top: 1px solid #e9ecef; font-size: 12.5px;
+    }
+
+    .legend {
+      background: rgba(255,255,255,0.97);
+      padding: 10px 12px;
+      border: 1px solid rgba(0,0,0,0.18);
+      border-radius: 12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    }
+    .legend .title { font-weight: 800; margin-bottom: 8px; color: #111827; font-size: 13px; }
+    .legend .item { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 12.5px; color: #374151; }
+    .legend .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.22); flex-shrink: 0; }
+    .legend .meta { margin-top: 8px; font-size: 11.5px; color: #6b7280; }
+
+    .leaflet-tooltip {
+      font-size: 13px; padding: 7px 11px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      border: 1px solid rgba(0,0,0,0.1);
+      pointer-events: none;
+      white-space: nowrap; line-height: 1.5;
+    }
+    .leaflet-tooltip-pane { z-index: 700 !important; }
+
+    .export-loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 500000;
+      align-items: center; justify-content: center;
+    }
+    .export-loading.show { display: flex; }
+    .export-loading-box {
+      background: rgba(17,24,39,0.9);
+      padding: 28px 40px; border-radius: 18px;
+      text-align: center; color: #fff;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .export-loading-box .icon { font-size: 36px; margin-bottom: 12px; animation: spin 1.2s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .export-loading-box .msg { font-size: 15px; font-weight: 700; }
+    .export-loading-box .sub { font-size: 12px; opacity: 0.7; margin-top: 6px; }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200000;
+      align-items: center; justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(3px);
+    }
+    .modal-overlay.open { display: flex; }
+
+    .chart-modal {
+      background: #fff; border-radius: 20px;
+      width: min(1020px, 100%); max-height: 92vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 28px 90px rgba(0,0,0,0.38);
+      overflow: hidden;
+    }
+    .chart-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff; flex-shrink: 0;
+    }
+    .chart-modal-header h2 { font-size: 17px; }
+    .modal-close-btn {
+      width: 34px; height: 34px; border: none;
+      background: rgba(255,255,255,0.22); color: #fff;
+      border-radius: 50%; cursor: pointer; font-size: 17px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .18s;
+    }
+    .modal-close-btn:hover { background: rgba(255,255,255,0.38); }
+
+    .chart-tabs {
+      display: flex; gap: 2px;
+      padding: 12px 20px 0;
+      background: #f1f3f5;
+      border-bottom: 1px solid #dee2e6;
+      flex-shrink: 0;
+    }
+    .chart-tab {
+      padding: 9px 20px; border: none;
+      background: transparent; cursor: pointer;
+      font-size: 13px; font-weight: 700; color: #6b7280;
+      border-radius: 8px 8px 0 0;
+      height: auto; width: auto;
+      border-bottom: 3px solid transparent;
+      transition: all .18s;
+    }
+    .chart-tab:hover { color: #667eea; background: rgba(102,126,234,0.08); }
+    .chart-tab.active { color: #667eea; border-bottom-color: #667eea; background: #fff; }
+
+    .chart-body { flex: 1; overflow-y: auto; padding: 20px 24px; min-height: 0; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .chart-controls { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+    .ctrl-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+    .ctrl-group label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+    .ctrl-group select { height: 38px; font-size: 13px; border-width: 1.5px; }
+
+    .chart-save-btn {
+      height: 38px; padding: 0 18px; flex-shrink: 0;
+      background: #10b981; border: none; border-radius: 10px;
+      color: #fff; cursor: pointer; font-weight: 700; font-size: 13px;
+      transition: background .18s, transform .18s;
+      white-space: nowrap; width: auto;
+    }
+    .chart-save-btn:hover { background: #059669; transform: translateY(-1px); }
+
+    .chart-note { font-size: 12px; color: #9ca3af; margin-bottom: 14px; }
+    .chart-canvas-wrap { position: relative; height: 400px; }
+    .chart-canvas-wrap.tall { height: 520px; }
+
+    .heatmap-scroll {
+      overflow: auto; max-height: 560px;
+      border: 1px solid #e9ecef; border-radius: 10px;
+      background: #ffffff;
+    }
+    #heatmapCanvas { display: block; }
+
+    .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: #6b7280; }
+    .heatmap-legend-bar {
+      height: 12px; width: 180px; border-radius: 6px;
+      background: linear-gradient(to right, #22c55e, #eab308, #ef4444);
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+
+    @media (max-width: 980px) {
+      body { padding: 10px; }
+      .content { grid-template-columns: 1fr; }
+      .panel { border-right: none; border-bottom: 1px solid #e9ecef; }
+      #map { min-height: 480px; }
+      .header-inner { align-items: flex-start; }
+      .header-logo img { height: 28px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-inner">
+        <div class="header-text">
+          <h1>지역별 환경보건 취약지수 시각화 맵</h1>
+          <p>행정동별 지표를 선택해 단계형 색상 지도로 확인합니다. <b>행정동명은 ADM 코드로 비식별 표기됩니다.</b></p>
+        </div>
+        <a class="header-logo" href="https://www.uri.re.kr/" target="_blank" rel="noopener">
+          <img src="./assets/logo.png" alt="울산연구원 로고" />
+        </a>
+      </div>
+    </div>
+
+    <div class="content">
+      <aside class="panel">
+        <div class="panel-card">
+          <div class="row" style="margin-bottom:6px;"><span class="pill">변수</span></div>
+          <label class="label" for="varSelect">개별 변수 선택</label>
+          <select id="varSelect"></select>
+          <div class="toggle-container">
+            <span class="toggle-label">정규화</span>
+            <div class="toggle-switch" id="normalizeToggle"><div class="toggle-knob"></div></div>
+            <span class="toggle-status" id="normalizeStatus">OFF</span>
+          </div>
+          <div class="hint" style="margin-top:12px;">
+            <div>※ 정규화 ON: 1~10 점수로 표시</div>
+            <div style="margin-top:6px;">※ 정규화 OFF: 원본 데이터 값 그대로 표시</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="row" style="margin-bottom:6px;"><span class="pill">영역</span></div>
+          <label class="label" for="domainSelect">영역별 점수</label>
+          <select id="domainSelect">
+            <option value="">-- 영역 선택 --</option>
+          </select>
+          <div class="hint" style="margin-top:12px;">
+            <div>※ 각 영역별 변수들의 평균 점수</div>
+            <div style="margin-top:6px;">※ 소수점 한자리로 표시(반올림)</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="row" style="margin-bottom:6px;"><span class="pill">종합</span></div>
+          <button class="btn" id="vulnerabilityBtn" type="button">환경보건 취약지수 보기</button>
+          <div class="hint" style="margin-top:12px;">
+            <div id="viFormulaText">※ 산출식 로딩 중…</div>
+            <div id="viScaleText" style="margin-top:6px;"></div>
+            <div style="margin-top:6px;">※ 녹색(낮음) → 황색(중간) → 적색(높음)</div>
+          </div>
+        </div>
+
+        <div class="panel-card notice-card">
+          <div class="row" style="margin-bottom:6px;"><span class="pill pill-warn">유의</span></div>
+          <div class="notice-block">
+            <div class="notice-h">1. 행정동명 → ADM 코드 표기</div>
+            <div class="notice-b">
+              본 화면은 <b>포트폴리오 공개용</b>이라 실제 행정동명을 노출하지 않고
+              <code>ADM-01</code> ~ <code>ADM-55</code> 코드로 대체했습니다.
+              코드는 원본 데이터 수록 순서로 부여한 <b>고정 일련번호</b>이며,
+              취약지수 순위·지역 위치와는 무관합니다. 지도상 경계는 실제 형상 그대로이므로
+              위치를 아는 사람은 식별이 가능합니다.
+            </div>
+          </div>
+          <div class="notice-block">
+            <div class="notice-h">2. 5개 영역 중 3개만 사용</div>
+            <div class="notice-b">
+              원 모델은 <b>환경압력·환경수준·환경보건수준·민감인구·사회경제적수준</b> 5개 영역이나,
+              이 버전은 비공개 자료인 <b>환경수준·환경보건수준</b>(환경상태 블록)을 제외한
+              <b>3개 영역</b>만 사용합니다. 산출식은 결측 블록을 <b>0으로 곱하지 않고 항 자체를 생략</b>하도록
+              재구성했습니다. 따라서 원 모델 결과와 <b>수치·순위가 다르며</b>,
+              구동 방식 시연용으로만 보시기 바랍니다.
+            </div>
+          </div>
+          <div class="notice-block">
+            <div class="notice-h">3. 상대지수</div>
+            <div class="notice-b">
+              취약지수는 55개 행정동 내 <b>상대 비교값(0~100)</b>입니다.
+              최저 동이 0, 최고 동이 100이 되도록 재조정한 값이라
+              <b>절대적 위험 수준이나 타 지역·타 연도와의 비교에는 쓸 수 없습니다.</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="row" style="margin-bottom:6px;"><span class="pill">분석</span></div>
+          <button class="btn" id="chartBtn" type="button" style="margin-bottom:10px;">차트 분석</button>
+          <button class="btn" id="exportBtn" type="button" style="margin-bottom:10px;">이미지로 저장</button>
+          <button class="btn" id="excelBtn" type="button" style="background:#0ea5e9;">엑셀로 저장</button>
+          <div class="hint" style="margin-top:12px;">
+            <div>차트: 바 차트 비교 · 순위 차트 · 영역 히트맵</div>
+            <div style="margin-top:6px;">이미지: 흰 배경 PNG · 엑셀: 전체 데이터 xlsx</div>
+            <div style="margin-top:6px;">데이터: <code>ulsan_dong_indicators.geojson</code></div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="map-wrap"><div id="map"></div></main>
+    </div>
+
+    <div class="footer">
+      지역별 환경보건 취약지수 시각화 맵 · 정적 웹(HTML/JS) · Leaflet 기반
+      <div style="margin-top:6px; font-size:11px; color:#9ca3af;">
+        포트폴리오 시연용 · 행정동명 비식별(ADM 코드) · 3개 영역 축소 모델 · 상대지수(0~100)
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="chartModal">
+    <div class="chart-modal">
+      <div class="chart-modal-header">
+        <h2>데이터 분석 차트</h2>
+        <div style="display:flex; align-items:center; gap:9px; margin-left:auto; margin-right:14px;">
+          <span style="font-size:12px; font-weight:700; opacity:0.95;">차트 라벨</span>
+          <span style="font-size:12px; padding:3px 10px; border-radius:999px;
+                       background:rgba(255,255,255,0.22); font-weight:700;">ADM 코드 (행정동명 비식별)</span>
+        </div>
+        <button class="modal-close-btn" id="closeChartModal" title="닫기">✕</button>
+      </div>
+
+      <div class="chart-tabs">
+        <button class="chart-tab active" data-tab="detail">세부변수</button>
+        <button class="chart-tab" data-tab="compare">영역 비교</button>
+        <button class="chart-tab" data-tab="ranking">변수 순위</button>
+        <button class="chart-tab" data-tab="heatmap">영역 히트맵</button>
+      </div>
+
+      <div class="chart-body">
+        <div class="tab-content active" id="tab-detail">
+          <div class="chart-controls">
+            <div class="ctrl-group" style="flex:2;min-width:200px;">
+              <label>ADM 코드</label><select id="detailDistrict"></select>
+            </div>
+            <button class="chart-save-btn" id="saveDetailChart">PNG 저장</button>
+          </div>
+          <p class="chart-note">※ 선택 행정동(ADM 코드)의 세부변수별 정규화 점수(1~10). <b style="color:#ef4444;">오른쪽(빨강)=취약성 가중(부호 +)</b>, <b style="color:#22c55e;">왼쪽(초록)=취약성 완화(부호 −)</b>. 막대가 길수록 그 방향으로의 영향이 큼.</p>
+          <div id="detailChartWrap" class="chart-canvas-wrap tall" style="overflow-y:auto;">
+            <canvas id="detailChart"></canvas>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-compare">
+          <div class="chart-controls">
+            <div class="ctrl-group"><label>ADM 코드 A</label><select id="districtA"></select></div>
+            <div class="ctrl-group"><label>ADM 코드 B</label><select id="districtB"></select></div>
+            <button class="chart-save-btn" id="saveCompareChart">PNG 저장</button>
+          </div>
+          <p class="chart-note">※ 두 행정동(ADM 코드)의 영역 점수를 정규화(1~10)하여 그룹 바 차트로 비교합니다. 현재 3개 영역만 표시됩니다.</p>
+          <div class="chart-canvas-wrap"><canvas id="compareChart"></canvas></div>
+        </div>
+
+        <div class="tab-content" id="tab-ranking">
+          <div class="chart-controls">
+            <div class="ctrl-group" style="flex:2;min-width:200px;">
+              <label>지표 선택</label><select id="rankingVarSelect"></select>
+            </div>
+            <div class="ctrl-group" style="min-width:140px;">
+              <label>표시 범위</label>
+              <select id="rankingTopN">
+                <option value="10">상위·하위 10개</option>
+                <option value="15">상위·하위 15개</option>
+                <option value="20" selected>상위·하위 20개</option>
+                <option value="999">전체 행정동</option>
+              </select>
+            </div>
+            <button class="chart-save-btn" id="saveRankingChart">PNG 저장</button>
+          </div>
+          <p class="chart-note">※ 선택 지표 기준 상위·하위 행정동을 수평 바 차트로 표시합니다. 붉을수록 높은 값, 초록일수록 낮은 값입니다.</p>
+          <div id="rankingChartWrap" class="chart-canvas-wrap tall" style="overflow-y:auto;">
+            <canvas id="rankingChart"></canvas>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-heatmap">
+          <div class="chart-controls">
+            <div class="ctrl-group" style="flex:2;min-width:220px;">
+              <label>정렬 기준</label>
+              <select id="heatmapSort">
+                <option value="vulnerability">환경보건 취약지수 (높은 순)</option>
+                <option value="name">ADM 코드순</option>
+              </select>
+            </div>
+            <button class="chart-save-btn" id="saveHeatmap">PNG 저장</button>
+          </div>
+          <p class="chart-note">※ ADM 코드 × 영역 + 종합취약지수(0~100) 히트맵. 좌우·상하 스크롤 가능합니다. 초록→황→적으로 갈수록 높은 수치입니다.</p>
+          <div class="heatmap-scroll"><canvas id="heatmapCanvas"></canvas></div>
+          <div class="heatmap-legend">
+            <span>낮음</span>
+            <div class="heatmap-legend-bar"></div>
+            <span>높음</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="export-loading" id="exportLoading">
+    <div class="export-loading-box">
+      <div class="icon">...</div>
+      <div class="msg">이미지 생성 중...</div>
+      <div class="sub">잠시만 기다려주세요</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/simple-statistics@7.8.3/dist/simple-statistics.min.js"></script>
+  <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+  <script>
+  'use strict';
+
+  // 차트 공통 폰트
+  const UI_FONT = "'Pretendard', 'Pretendard Variable', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
+  if (window.Chart) {
+    Chart.defaults.font.family = UI_FONT;
+    Chart.defaults.font.weight = '600';
+    Chart.defaults.font.size = 18;
+    Chart.defaults.color = '#374151';
+  }
+
+  // ── 상수 ────────────────────────────────────────────────────
+  const GEOJSON_URL = "./ulsan_dong_indicators.geojson";
+  // 비식별 처리로 GeoJSON에서 제거된 필드명. 표시에는 쓰지 않고,
+  // 노트북 재생성 등으로 이름이 다시 들어오더라도 변수 목록에서 걸러내기 위해 남겨둔다.
+  const NAME_FIELD  = "ADM_NM";
+  const K_VALUE     = 10;
+
+  // GeoJSON 메타데이터에서 동적으로 덮어씌워짐. 아래는 fallback.
+  let DOMAIN_MAPPING = {};
+  let DOMAIN_SCORES  = {
+    "환경압력":       { min: 1, max: 5  },
+    "환경수준":       { min: 1, max: 10 },
+    "환경보건수준":   { min: 1, max: 5  },
+    "민감인구":       { min: 1, max: 3  },
+    "사회경제적수준": { min: 1, max: 3  }
+  };
+  // 변수 부호: 1=POSITIVE(값↑=취약↑), 0=NEGATIVE(값↑=취약↓ → 정규화 시 10-x로 반전)
+  let VARIABLE_SIGNS = {};
+
+  // ── 취약지수 블록 구조 ──────────────────────────────────────
+  // 원 모델식: 환경압력 x (환경수준 + 환경보건수준) x (민감인구 + 사회경제적수준)
+  //   = [압력 블록] x [환경상태 블록] x [수용체 블록]
+  // 각 블록은 소속 영역 점수의 "합", 블록끼리는 "곱".
+  // 데이터에 없는 영역은 합에서 빠지고, 블록이 통째로 비면 그 항은 곱에서 생략된다.
+  //   -> 영역이 빠져도 0으로 붕괴하지 않고, 되살리면 원식으로 자동 복귀.
+  const VI_BLOCKS = [
+    { key: 'pressure', label: '환경압력',        domains: ['환경압력'] },
+    { key: 'state',    label: '환경상태',        domains: ['환경수준', '환경보건수준'] },
+    { key: 'receptor', label: '인구·사회 취약성', domains: ['민감인구', '사회경제적수준'] }
+  ];
+  // 최종 취약지수 표시 범위 (블록 곱 원값을 상대지수로 재조정)
+  const VI_DISPLAY = { min: 0, max: 100 };
+  let   VI_ACTIVE  = [];   // 실제 산출에 쓰인 블록
+  let   VI_MISSING = [];   // 데이터가 없어 생략된 블록
+
+  const COLOR_RAMPS = {
+    variable:      { 5:["#ffffcc","#fed976","#feb24c","#fd8d3c","#e31a1c"], 7:["#ffffcc","#ffeda0","#fed976","#feb24c","#fd8d3c","#f03b20","#bd0026"], 10:["#ffffcc","#ffeda0","#fed976","#feb24c","#fd8d3c","#fc4e2a","#e31a1c","#bd0026","#800026","#4d0018"] },
+    domain:        { 5:["#ffffcc","#a1dab4","#41b6c4","#2c7fb8","#253494"], 7:["#ffffcc","#c7e9b4","#7fcdbb","#41b6c4","#2c7fb8","#225ea8","#253494"], 10:["#ffffcc","#edf8b1","#c7e9b4","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#253494","#081d58","#081d58"] },
+    vulnerability: { 5:["#22c55e","#84cc16","#eab308","#f97316","#ef4444"], 7:["#22c55e","#65a30d","#84cc16","#eab308","#f97316","#f87171","#ef4444"], 10:["#22c55e","#4ade80","#84cc16","#a3e635","#eab308","#fbbf24","#f97316","#fb923c","#ef4444","#dc2626"] }
+  };
+
+  // ── 상태 ────────────────────────────────────────────────────
+  let geoData          = null;
+  let geoLayer         = null;
+  let legendControl    = null;
+  let isNormalized     = false;
+  let currentMode      = 'variable';
+  let compareChartInst = null;
+  let rankingChartInst = null;
+  let detailChartInst  = null;
+  // 라벨은 항상 ADM 코드로 고정 (포트폴리오 공개용 비식별 표기)
+
+  // ── 지도 초기화 ─────────────────────────────────────────────
+  const map  = L.map("map").setView([35.55, 129.30], 11);
+  const base = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; OpenStreetMap &copy; CARTO'
+  }).addTo(map);
+
+  // ── 유틸 ────────────────────────────────────────────────────
+  function getColor(idx, k, mode = 'variable') {
+    const ramp = COLOR_RAMPS[mode] || COLOR_RAMPS.variable;
+    const pal  = ramp[k] || ramp[10];
+    return pal[Math.min(idx, pal.length - 1)];
+  }
+
+  function fmt(v, isDomain = false) {
+    if (v === null || v === undefined || Number.isNaN(v)) return "NA";
+    const n = parseFloat(v);
+    if (isDomain)     return n.toFixed(1);
+    if (isNormalized) return Math.round(n).toString();
+    return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function computeNaturalBreaks(values, k) { return ss.jenks(values, k); }
+
+  // ── 행정동명 비식별: ADM 코드 부여 ────────────────────────
+  // 포트폴리오 공개용이라 실제 행정동명 대신 ADM 코드로만 표출한다.
+  // 코드는 "원본 GeoJSON 수록 순서"로 매기는 고정 일련번호다.
+  //   · 취약지수 순위로 매기면 코드 자체가 순위를 노출하고,
+  //     모델을 손볼 때마다 같은 동의 코드가 바뀌어 캡처끼리 대조가 불가능해진다.
+  //   · 수록 순서는 취약지수와 무관하고 재실행해도 불변이라 식별자로 안전하다.
+  function assignAdmCodes() {
+    if (!geoData) return;
+    const pad = String(geoData.features.length).length;
+    geoData.features.forEach((f, i) => {
+      f.properties.__adm = 'ADM-' + String(i + 1).padStart(pad, '0');
+    });
+  }
+
+  // 취약지수 내림차순 순위(참고용). 코드와 분리해 별도 보관.
+  function assignRanks() {
+    if (!geoData) return;
+    const feats = geoData.features.slice().sort((a, b) => {
+      const va = a.properties['vulnerability_index'];
+      const vb = b.properties['vulnerability_index'];
+      const na = (va === null || va === undefined || Number.isNaN(va)) ? -Infinity : va;
+      const nb = (vb === null || vb === undefined || Number.isNaN(vb)) ? -Infinity : vb;
+      return nb - na;
+    });
+    feats.forEach((f, i) => { f.properties.__rank = i + 1; });
+  }
+
+  // 표시 라벨: 항상 ADM 코드 (행정동명은 화면·산출물 어디에도 노출하지 않음)
+  function labelOf(feat) {
+    if (!feat) return '';
+    return feat.properties.__adm || '';
+  }
+
+  // ADM 코드로 feature 조회 (select value가 전부 ADM 코드)
+  function featByAdm(code) {
+    if (!geoData) return null;
+    return geoData.features.find(f => f.properties.__adm === code) || null;
+  }
+
+  // raw → [lo, hi] 선형 min-max 정규화. 기본값을 1~10으로 두어 호출자가 인자를 빠뜨려도 안전.
+  function normalizeToRange(values, lo = 1, hi = 10) {
+    const valid = values.filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+    if (!valid.length) return values;
+    const mn = Math.min(...valid), mx = Math.max(...valid);
+    if (mn === mx) return values.map(v => (v !== null && !Number.isNaN(v)) ? (lo + hi) / 2 : v);
+    return values.map(v => (v === null || Number.isNaN(v)) ? v : lo + ((v - mn) / (mx - mn)) * (hi - lo));
+  }
+
+  // ── 데이터 전처리 ──────────────────────────────────────────
+  function populateVarsFromGeoJSON(geojson) {
+    const props = geojson.features?.[0]?.properties || {};
+    return Object.keys(props).filter(k =>
+      k !== NAME_FIELD && k !== "join_key" &&
+      !k.endsWith("_normalized_1_10") &&
+      !k.startsWith("domain_") && k !== "vulnerability_index" &&
+      !k.startsWith("_")
+    ).filter(vn =>
+      geojson.features.some(f => typeof f.properties[vn] === "number" && !Number.isNaN(f.properties[vn]))
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // [환경보건 취약지수 산출 흐름]
+  //
+  //   raw data
+  //      ↓  normalizeToRange(vals, 1, 10)           ← 1~10 min-max 정규화
+  //      ↓  NEGATIVE 변수는 11 − v로 반전           ← 1↔10 대칭, 모두 "취약 기여도"로 통일
+  //   세부변수별 정규화 값 (1~10)
+  //      ↓  도메인별 변수들 평균 → 동별 도메인 평균
+  //      ↓  normalizeToRange(domainAvg, s.min, s.max)  ← 영역별 범위로 min-max 정규화
+  //   영역 점수 (DOMAIN_SCORES의 min~max, 예: 환경압력 1~5 / 민감인구 1~3)
+  //      ↓  블록별 합 → 블록끼리 곱 (VI_BLOCKS, 빈 블록은 항 생략)
+  //   취약지수 원값 (__vi_raw)
+  //      ↓  normalizeToRange(raw, 0, 100)           ← 55개 동 내 상대지수로 재조정
+  //   환경보건 취약지수 (vulnerability_index, 0~100)
+  //
+  // ── 원 모델과 달라진 점 ───────────────────────────────────────
+  //   원식 : 환경압력 x (환경수준 + 환경보건수준) x (민감인구 + 사회경제적수준)
+  //   문제 : 이 버전의 데이터에는 "환경수준·환경보건수준"이 없어 둘째 괄호가 0이 되고,
+  //          곱셈이라 55개 동 전부 취약지수 0으로 붕괴 → 등급 분류·지도 색상 산출 불가.
+  //   조치 : 결측 블록을 0으로 곱하지 않고 "항 자체를 생략"하도록 재구성.
+  //          현재 산출식 = 환경압력 x (민감인구 + 사회경제적수준)
+  //          VI_BLOCKS 중 데이터가 있는 블록만 곱하므로, 추후 환경수준·환경보건수준을
+  //          복원하면 코드 수정 없이 원식으로 자동 복귀한다.
+  //   유의 : 블록 하나가 통째로 빠진 만큼 원 모델과 수치·순위가 다르다. 구동 시연용.
+  // ──────────────────────────────────────────────────────────────
+
+  // 데이터가 있는 블록 / 통째로 빠진 블록 판별
+  function resolveBlocks() {
+    VI_ACTIVE = VI_BLOCKS
+      .map(b => Object.assign({}, b, { present: b.domains.filter(d => DOMAIN_MAPPING[d]) }))
+      .filter(b => b.present.length > 0);
+    VI_MISSING = VI_BLOCKS.filter(b => b.domains.every(d => !DOMAIN_MAPPING[d]));
+  }
+
+  // 현재 산출식을 사람이 읽는 문자열로 (UI 표기·콘솔 로그 공용)
+  function viFormulaText() {
+    if (!VI_ACTIVE.length) return '(사용 가능한 영역 없음)';
+    return VI_ACTIVE
+      .map(b => b.present.length > 1 ? '(' + b.present.join(' + ') + ')' : b.present[0])
+      .join(' × ');
+  }
+
+  function normalizeAllVariables() {
+    if (!geoData) return;
+    const vars = populateVarsFromGeoJSON(geoData);
+    console.log(`[1단계: 정규화] ${vars.length}개 변수를 1~10으로 min-max 정규화`);
+
+    const summary = [];
+    vars.forEach(varName => {
+      const vals = geoData.features.map(f => f.properties[varName]);
+      let norm = normalizeToRange(vals, 1, 10);
+      // NEGATIVE(0) 변수 반전: 1↔10, 2↔9, ... 대칭 (모두 "취약 기여도"로 통일)
+      if (VARIABLE_SIGNS[varName] === 0) {
+        norm = norm.map(v => (v === null || v === undefined || Number.isNaN(v)) ? v : 11 - v);
+      }
+      geoData.features.forEach((f, i) => { f.properties[varName + '_normalized_1_10'] = norm[i]; });
+
+      // 검증 로그용
+      const validNorm = norm.filter(v => v != null && !Number.isNaN(v));
+      if (validNorm.length) {
+        summary.push({
+          var: varName,
+          sign: VARIABLE_SIGNS[varName] === 0 ? '−' : '+',
+          min: Math.min(...validNorm).toFixed(2),
+          max: Math.max(...validNorm).toFixed(2)
+        });
+      }
+    });
+    console.table(summary);
+  }
+
+  function calculateDomainScores() {
+    if (!geoData) return;
+    const domains = Object.keys(DOMAIN_MAPPING);
+    resolveBlocks();
+
+    // 2-1단계: 행정동별 도메인 평균 (1~10 정규화·부호반영 값들의 평균)
+    const avgByDomain = {};
+    domains.forEach(domain => {
+      avgByDomain[domain] = geoData.features.map(feat => {
+        const vals = DOMAIN_MAPPING[domain]
+          .map(vn => feat.properties[vn + '_normalized_1_10'])
+          .filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+        return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      });
+    });
+
+    // 2-2단계: 도메인 평균을 영역별 범위로 min-max 정규화
+    //   (최저 동 → s.min, 최고 동 → s.max). 범위 폭(예: 1~5, 1~3)이 곧 가중치.
+    domains.forEach(domain => {
+      const s = DOMAIN_SCORES[domain] || { min: 1, max: 10 };
+      const scaled = normalizeToRange(avgByDomain[domain], s.min, s.max);
+      geoData.features.forEach((f, i) => { f.properties['domain_' + domain] = scaled[i]; });
+    });
+
+    // 3단계: 블록별 합 → 블록끼리 곱. 비어 있는 블록은 항에서 생략(0 곱 방지).
+    geoData.features.forEach(feat => {
+      if (!VI_ACTIVE.length) { feat.properties.__vi_raw = null; return; }
+      let product = 1;
+      VI_ACTIVE.forEach(b => {
+        const sum = b.present.reduce((acc, d) => {
+          const v = feat.properties['domain_' + d];
+          return acc + ((v === null || v === undefined || Number.isNaN(v)) ? 0 : v);
+        }, 0);
+        product *= sum;
+      });
+      feat.properties.__vi_raw = product;
+    });
+
+    // 4단계: 원값을 0~100 상대지수로 재조정 (블록 수가 달라도 눈금이 일정하도록)
+    const raws   = geoData.features.map(f => f.properties.__vi_raw);
+    const scaled = normalizeToRange(raws, VI_DISPLAY.min, VI_DISPLAY.max);
+    geoData.features.forEach((f, i) => { f.properties['vulnerability_index'] = scaled[i]; });
+
+    assignRanks();   // 취약지수 순위(참고용) — ADM 코드와는 무관
+
+    // ─ 검증 로그: 영역 점수 & 취약지수 분포 ─
+    console.log('[2단계: 영역 점수] 도메인 평균을 영역별 범위로 min-max 정규화');
+    console.table(domains.map(d => {
+      const vals = geoData.features.map(f => f.properties['domain_' + d]).filter(v => v != null && !Number.isNaN(v));
+      const s = DOMAIN_SCORES[d] || { min: 1, max: 10 };
+      return {
+        영역: d,
+        '범위(min~max)': s.min + '~' + s.max,
+        실제_min: vals.length ? Math.min(...vals).toFixed(2) : '-',
+        실제_max: vals.length ? Math.max(...vals).toFixed(2) : '-',
+        변수수: DOMAIN_MAPPING[d].length
+      };
+    }));
+
+    console.log('[3단계: 환경보건 취약지수] = ' + viFormulaText() + '  → 0~100 재조정');
+    if (VI_MISSING.length) {
+      const miss = VI_MISSING.map(b => b.label + '(' + b.domains.join('/') + ')').join(', ');
+      console.warn(
+        [
+          '⚠ 데이터가 없어 생략된 블록: ' + miss,
+          '   원 모델식: 환경압력 × (환경수준 + 환경보건수준) × (민감인구 + 사회경제적수준)',
+          '   해당 블록을 0으로 곱하면 전 행정동 취약지수가 0이 되므로 항 자체를 생략했습니다.',
+          '   → 원 모델과 수치·순위가 다릅니다 (구동 시연용).'
+        ].join(String.fromCharCode(10))
+      );
+    }
+    const rawVals = geoData.features.map(f => f.properties.__vi_raw).filter(v => v != null && !Number.isNaN(v));
+    const viVals  = geoData.features.map(f => f.properties['vulnerability_index']).filter(v => v != null && !Number.isNaN(v));
+    if (rawVals.length) {
+      console.log('  ✓ 원값: min=' + Math.min(...rawVals).toFixed(2) + ', max=' + Math.max(...rawVals).toFixed(2));
+    }
+    if (viVals.length) {
+      const uniq = new Set(viVals.map(v => v.toFixed(6))).size;
+      console.log('  ✓ 취약지수(0~100): min=' + Math.min(...viVals).toFixed(2) +
+                  ', max=' + Math.max(...viVals).toFixed(2) +
+                  ', 평균=' + (viVals.reduce((a, b) => a + b, 0) / viVals.length).toFixed(2) +
+                  ', 고유값=' + uniq + '개');
+      if (uniq <= 1) console.error('✗ 취약지수가 전 행정동 동일값 — 등급 분류 불가. 영역 매핑을 확인하세요.');
+    }
+  }
+
+  // ── 범례 ────────────────────────────────────────────────────
+  function buildLegend(breaks, k, displayName, mode) {
+    if (legendControl) legendControl.remove();
+    legendControl = L.control({ position: "bottomright" });
+    legendControl.onAdd = function () {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `<div class="title">${displayName}</div>`;
+
+      if (mode === 'variable' && isNormalized) {
+        for (let i = 0; i < k; i++) {
+          div.innerHTML += `<div class="item"><span class="swatch" style="background:${getColor(i, k, 'variable')}"></span><span>${i + 1}</span></div>`;
+        }
+        div.innerHTML += `<div class="meta">1 (낮음) ~ ${k} (높음)</div>`;
+      } else if (mode === 'vulnerability') {
+        for (let i = 0; i < k; i++) {
+          const mid = (breaks[i] + breaks[i + 1]) / 2;
+          div.innerHTML += `<div class="item"><span class="swatch" style="background:${getColor(i, k, 'vulnerability')}"></span><span>${fmt(mid, true)}</span></div>`;
+        }
+        div.innerHTML += `<div class="meta">녹색(안전) → 황색(보통) → 적색(취약)</div>`;
+      } else if (mode === 'domain') {
+        for (let i = 0; i < k; i++) {
+          div.innerHTML += `<div class="item"><span class="swatch" style="background:${getColor(i, k, 'domain')}"></span><span>${i + 1}</span></div>`;
+        }
+        div.innerHTML += `<div class="meta">1 (낮음) ~ ${k} (높음)</div>`;
+      } else {
+        for (let i = 0; i < k; i++) {
+          const mid = (breaks[i] + breaks[i + 1]) / 2;
+          div.innerHTML += `<div class="item"><span class="swatch" style="background:${getColor(i, k, 'variable')}"></span><span>${fmt(mid)}</span></div>`;
+        }
+        div.innerHTML += `<div class="meta">Natural Breaks, k=${k}</div>`;
+      }
+      return div;
+    };
+    legendControl.addTo(map);
+  }
+
+  // ── 스타일 / 인터랙션 공통 ─────────────────────────────────
+  function styleFeature(feature, dataKey, breaks, k, mode) {
+    const v = feature.properties[dataKey];
+    if (v === null || v === undefined || Number.isNaN(v))
+      return { color: "#9ca3af", weight: 1, fillOpacity: 0.25, fillColor: "#e5e7eb" };
+    let idx = k - 1;
+    for (let i = 0; i < k; i++) { if (v <= breaks[i + 1]) { idx = i; break; } }
+    return { color: "#6b7280", weight: 1, fillOpacity: 0.78, fillColor: getColor(idx, k, mode) };
+  }
+
+  // 마우스오버 시 SVG 최상위로 끌어올려 툴팁 겹침 방지
+  function makeOnEachFeature(tooltipFn) {
+    return function(feature, layer) {
+      layer.on({
+        mouseover: function() {
+          this.bringToFront();
+          this.setStyle({ weight: 2.5, color: '#1e3a8a' });
+        },
+        mouseout: function() { if (geoLayer) geoLayer.resetStyle(this); }
+      });
+      layer.bindTooltip(tooltipFn(feature), { sticky: true, direction: 'auto', offset: [10, 0] });
+    };
+  }
+
+  // ── 공통 렌더 헬퍼 ────────────────────────────────────────
+  function renderLayer(dataKey, mode, tooltipFn, displayName) {
+    const vals = geoData.features
+      .map(f => f.properties[dataKey])
+      .filter(v => typeof v === "number" && !Number.isNaN(v));
+    if (!vals.length) { alert(`'${displayName}' 데이터가 없습니다.`); return; }
+
+    const kEff   = Math.max(2, Math.min(K_VALUE, new Set(vals).size));
+    const breaks = computeNaturalBreaks(vals, kEff);
+
+    if (geoLayer) geoLayer.remove();
+    geoLayer = L.geoJSON(geoData, {
+      style: f => styleFeature(f, dataKey, breaks, kEff, mode),
+      onEachFeature: makeOnEachFeature(tooltipFn)
+    }).addTo(map);
+    try { map.fitBounds(geoLayer.getBounds(), { padding: [14, 14] }); } catch(e) {}
+    buildLegend(breaks, kEff, displayName, mode);
+  }
+
+  function renderVariable(varName) {
+    if (!geoData) return;
+    currentMode = 'variable';
+    const dataKey = isNormalized ? varName + '_normalized_1_10' : varName;
+    renderLayer(dataKey, 'variable', feature => {
+      const nm  = labelOf(feature);
+      const raw = feature.properties[varName];
+      if (isNormalized) {
+        const nv = feature.properties[dataKey];
+        return `<b>${nm}</b><br/>${varName}: ${Math.round(nv)} <span style="color:#9ca3af;font-size:11px;">(원본: ${fmt(raw)})</span>`;
+      }
+      return `<b>${nm}</b><br/>${varName}: ${fmt(raw)}`;
+    }, varName);
+  }
+
+  function renderDomain(domainName) {
+    if (!geoData) return;
+    currentMode = 'domain';
+    const dataKey = 'domain_' + domainName;
+    const s = DOMAIN_SCORES[domainName] || { min: 1, max: 10 };
+    renderLayer(dataKey, 'domain', feature => {
+      const nm    = labelOf(feature);
+      const score = feature.properties[dataKey];
+      return `<b>${nm}</b><br/>${domainName}: ${fmt(score, true)}점`;
+    }, `${domainName} (${s.min}~${s.max}점)`);
+  }
+
+  function renderVulnerability() {
+    if (!geoData) return;
+    currentMode = 'vulnerability';
+    renderLayer('vulnerability_index', 'vulnerability', feature => {
+      const nm    = labelOf(feature);
+      const score = feature.properties['vulnerability_index'];
+      const rank  = feature.properties.__rank;
+      return `<b>${nm}</b><br/>환경보건 취약지수: ${fmt(score, true)} / 100` +
+             (rank ? `<br/><span style="color:#9ca3af;font-size:11px;">취약 순위 ${rank}위 / ${geoData.features.length}</span>` : '');
+    }, '환경보건 취약지수 (0~100)');
+  }
+
+  // ── 지도 이미지 내보내기 (흰 배경 JPG) ────────────────────
+  async function exportMapAsImage() {
+    const loadingEl = document.getElementById('exportLoading');
+    loadingEl.classList.add('show');
+
+    const hadBase = map.hasLayer(base);
+    if (hadBase) map.removeLayer(base);
+
+    // 항상 울산 전체가 중앙에 오도록 뷰 리셋 (사용자가 줌/이동한 상태와 무관하게 일관된 캡처)
+    if (geoLayer) {
+      try { map.fitBounds(geoLayer.getBounds(), { padding: [14, 14] }); } catch (e) {}
+    }
+
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise(r => setTimeout(r, 450));
+
+    try {
+      const mapSize = map.getSize();
+      const SCALE   = 2;
+      const W = mapSize.x, H = mapSize.y;
+
+      // 화면(0,0)에 해당하는 SVG 좌표 계산
+      const mapPane = map.getPanes().mapPane;
+      const paneXfm = mapPane.style.transform || mapPane.style.webkitTransform || '';
+      // translate3d(...) / translate(...) 둘 다 매칭 (브라우저에 따라 다름)
+      const m = paneXfm.match(/translate(?:3d)?\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px/);
+      const TX = m ? parseFloat(m[1]) : 0;
+      const TY = m ? parseFloat(m[2]) : 0;
+
+      const overlayPane = map.getPanes().overlayPane;
+      const svgEl = overlayPane ? overlayPane.querySelector('svg') : null;
+      const SL = svgEl ? (parseFloat(svgEl.style.left) || 0) : 0;
+      const ST = svgEl ? (parseFloat(svgEl.style.top)  || 0) : 0;
+      const viewX = -(TX + SL);
+      const viewY = -(TY + ST);
+
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width  = W * SCALE;
+      finalCanvas.height = H * SCALE;
+      const fctx = finalCanvas.getContext('2d');
+      fctx.fillStyle = '#ffffff';
+      fctx.fillRect(0, 0, W * SCALE, H * SCALE);
+
+      if (svgEl) {
+        const svgClone = svgEl.cloneNode(true);
+        svgClone.setAttribute('xmlns',       'http://www.w3.org/2000/svg');
+        svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+        svgClone.setAttribute('viewBox', `${viewX} ${viewY} ${W} ${H}`);
+        svgClone.setAttribute('width',   `${W * SCALE}`);
+        svgClone.setAttribute('height',  `${H * SCALE}`);
+
+        // path 스타일을 인라인으로 복사 (CSS 클래스 미적용 방지)
+        const origPaths  = svgEl.querySelectorAll('path');
+        const clonePaths = svgClone.querySelectorAll('path');
+        origPaths.forEach((orig, i) => {
+          if (!clonePaths[i]) return;
+          const cs = getComputedStyle(orig);
+          clonePaths[i].style.fill        = cs.fill;
+          clonePaths[i].style.stroke      = cs.stroke;
+          clonePaths[i].style.strokeWidth = cs.strokeWidth;
+          clonePaths[i].style.fillOpacity = cs.fillOpacity;
+        });
+
+        const svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+                       new XMLSerializer().serializeToString(svgClone);
+        const blob   = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const url    = URL.createObjectURL(blob);
+
+        await new Promise(resolve => {
+          const img   = new Image();
+          img.onload  = () => { fctx.drawImage(img, 0, 0, W * SCALE, H * SCALE); URL.revokeObjectURL(url); resolve(); };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+          img.src = url;
+        });
+      }
+
+      if (legendControl) {
+        const legendEl = legendControl.getContainer();
+        const mapEl    = document.getElementById('map');
+        if (legendEl && mapEl) {
+          const mapRect    = mapEl.getBoundingClientRect();
+          const legendRect = legendEl.getBoundingClientRect();
+          const lL = (legendRect.left - mapRect.left) * SCALE;
+          const lT = (legendRect.top  - mapRect.top)  * SCALE;
+          const lCanvas = await html2canvas(legendEl, {
+            backgroundColor: '#ffffff', scale: SCALE, useCORS: true, logging: false
+          });
+          fctx.drawImage(lCanvas, lL, lT);
+        }
+      }
+
+      let fn = '울산_환경보건취약지수';
+      if (currentMode === 'variable') {
+        fn += `_${document.getElementById('varSelect').value}${isNormalized ? '_정규화' : ''}`;
+      } else if (currentMode === 'domain') {
+        fn += `_${document.getElementById('domainSelect').value}`;
+      } else {
+        fn += '_종합취약지수';
+      }
+      fn += `_${new Date().toISOString().slice(0, 10)}`;
+
+      const link = document.createElement('a');
+      link.download = fn + '.jpg';
+      link.href     = finalCanvas.toDataURL('image/jpeg', 0.93);
+      link.click();
+    } catch (err) {
+      console.error('Export 실패:', err);
+      alert('이미지 생성 실패: ' + err.message);
+    } finally {
+      if (hadBase && !map.hasLayer(base)) map.addLayer(base);
+      loadingEl.classList.remove('show');
+    }
+  }
+
+  // ── 차트 모달 공용 ────────────────────────────────────────
+  function openChartModal() {
+    if (!geoData) return;
+    populateDistrictSelects();
+    populateDetailDistrict();
+    populateRankingVarSelect();
+    document.getElementById('chartModal').classList.add('open');
+    const activeTab = document.querySelector('.chart-tab.active')?.dataset.tab;
+    renderActiveTab(activeTab);
+  }
+  function closeChartModal() { document.getElementById('chartModal').classList.remove('open'); }
+  function renderActiveTab(tab) {
+    if (tab === 'compare')      renderCompareChart();
+    else if (tab === 'detail')  renderDetailChart();
+    else if (tab === 'ranking') renderRankingChart();
+    else if (tab === 'heatmap') drawHeatmap();
+  }
+
+  function populateDistrictSelects() {
+    // 정렬·value 모두 ADM 코드 기준 (행정동명은 사용하지 않음)
+    const feats = geoData.features.filter(f => f.properties.__adm)
+      .slice().sort((a, b) => a.properties.__adm.localeCompare(b.properties.__adm));
+    const html  = feats.map(f => `<option value="${f.properties.__adm}">${labelOf(f)}</option>`).join('');
+    ['districtA', 'districtB'].forEach((id, idx) => {
+      const el = document.getElementById(id);
+      const prev = el.value;
+      el.innerHTML = html;
+      el.value = (prev && feats.some(f => f.properties.__adm === prev))
+        ? prev : (feats[idx] ? feats[idx].properties.__adm : '');
+    });
+  }
+
+  function populateRankingVarSelect() {
+    const vars = populateVarsFromGeoJSON(geoData);
+    const domOpts = Object.keys(DOMAIN_MAPPING).map(d => `<option value="domain_${d}">${d} (영역 점수)</option>`).join('');
+    const varOpts = vars.map(v => `<option value="raw_${v}">${v}</option>`).join('');
+    document.getElementById('rankingVarSelect').innerHTML =
+      `<option value="vulnerability">환경보건 취약지수 (종합)</option>${domOpts}${varOpts}`;
+  }
+
+  // ── Tab 1: 비교 바 차트 ──────────────────────────────────
+  function renderCompareChart() {
+    if (!geoData) return;
+    const fA = featByAdm(document.getElementById('districtA').value);
+    const fB = featByAdm(document.getElementById('districtB').value);
+    if (!fA || !fB) return;
+
+    const domains = Object.keys(DOMAIN_MAPPING);
+    const norm = feat => domains.map(d => {
+      const raw = feat.properties['domain_' + d];
+      const s   = DOMAIN_SCORES[d] || { min: 1, max: 10 };
+      if (raw === null || raw === undefined || Number.isNaN(raw)) return 1;
+      return s.max > s.min ? ((raw - s.min) / (s.max - s.min)) * 9 + 1 : 1;
+    });
+    const rawScore = (feat, domain) => {
+      const v = feat.properties['domain_' + domain];
+      return (v === null || v === undefined || Number.isNaN(v)) ? '0.00' : v.toFixed(2);
+    };
+    const vA = norm(fA), vB = norm(fB);
+
+    const ctx = document.getElementById('compareChart').getContext('2d');
+    if (compareChartInst) compareChartInst.destroy();
+
+    compareChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: domains,
+        datasets: [
+          { label: labelOf(fA), data: vA, backgroundColor: 'rgba(102,126,234,0.72)', borderColor: '#667eea', borderWidth: 2, borderRadius: 6 },
+          { label: labelOf(fB), data: vB, backgroundColor: 'rgba(239,68,68,0.72)',  borderColor: '#ef4444', borderWidth: 2, borderRadius: 6 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 19, weight: 'bold' } } },
+          tooltip: {
+            titleFont: { size: 16, weight: 'bold' },
+            bodyFont: { size: 15 },
+            callbacks: {
+              label: ctx => {
+                const d    = domains[ctx.dataIndex];
+                const feat = ctx.datasetIndex === 0 ? fA : fB;
+                const raw  = rawScore(feat, d);
+                const mx   = (DOMAIN_SCORES[d] || {max:10}).max;
+                return `${ctx.dataset.label}: ${raw}점 / ${mx}점  (정규화: ${ctx.raw.toFixed(1)}/10)`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            min: 1, max: 10,
+            title: { display: true, text: '정규화 점수 (1~10)', font: { size: 18, weight: 'bold' } },
+            ticks: { font: { size: 16 } },
+            grid: { color: 'rgba(0,0,0,0.06)' }
+          },
+          x: { grid: { display: false }, ticks: { font: { size: 18, weight: '600' } } }
+        }
+      }
+    });
+  }
+
+  // ── Tab 2: 세부변수 다이버징 바 차트 ─────────────────────
+  function populateDetailDistrict() {
+    const feats = geoData.features.filter(f => f.properties.__adm)
+      .slice().sort((a, b) => a.properties.__adm.localeCompare(b.properties.__adm));
+    const sel = document.getElementById('detailDistrict');
+    const prev = sel.value;
+    sel.innerHTML = feats.map(f => `<option value="${f.properties.__adm}">${labelOf(f)}</option>`).join('');
+    sel.value = (prev && feats.some(f => f.properties.__adm === prev))
+      ? prev : (feats.length ? feats[0].properties.__adm : '');
+  }
+
+  function renderDetailChart() {
+    if (!geoData) return;
+    const feat = featByAdm(document.getElementById('detailDistrict').value);
+    if (!feat) return;
+
+    // 도메인 순서대로 세부변수 정렬 (영역별 그룹핑)
+    const rows = [];
+    Object.keys(DOMAIN_MAPPING).forEach(domain => {
+      DOMAIN_MAPPING[domain].forEach(vn => {
+        const contrib = feat.properties[vn + '_normalized_1_10'];   // 취약 기여도(부호 반영, 1~10)
+        if (contrib === null || contrib === undefined || Number.isNaN(contrib)) return;
+        const isNeg   = VARIABLE_SIGNS[vn] === 0;
+        // 원래 min-max 정규화값(1~10) 역산: NEGATIVE는 11-contrib, POSITIVE는 contrib 그대로
+        const rawNorm = isNeg ? (11 - contrib) : contrib;
+        // 차트 표시값: POSITIVE → +rawNorm(오른쪽), NEGATIVE → -rawNorm(왼쪽)
+        rows.push({
+          domain, varName: vn, isNeg,
+          rawNorm,
+          plotVal: isNeg ? -rawNorm : rawNorm,
+          raw: feat.properties[vn]
+        });
+      });
+    });
+
+    const labels = rows.map(d => d.varName);
+    const values = rows.map(d => d.plotVal);
+    const colors = rows.map(d => d.isNeg ? 'rgba(34,197,94,0.80)' : 'rgba(239,68,68,0.80)');
+
+    const wrap = document.getElementById('detailChartWrap');
+    wrap.style.height = Math.max(480, rows.length * 32 + 100) + 'px';
+
+    const ctx = document.getElementById('detailChart').getContext('2d');
+    if (detailChartInst) detailChartInst.destroy();
+
+    detailChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{
+        data: values, backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.80', '1')),
+        borderWidth: 1, borderRadius: 3
+      }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: `${labelOf(feat)} — 세부변수별 취약성 기여도`,
+            font: { size: 20, weight: 'bold' }
+          },
+          tooltip: {
+            titleFont: { size: 16, weight: 'bold' },
+            bodyFont: { size: 15 },
+            callbacks: {
+              title: items => items[0].label,
+              label: c => {
+                const d = rows[c.dataIndex];
+                return [
+                  ` 영역: ${d.domain}`,
+                  ` 원본값: ${fmt(d.raw)}`,
+                  ` 정규화: ${d.rawNorm.toFixed(1)} / 10`,
+                  ` ${d.isNeg ? '취약성 완화 (부호 −)' : '취약성 가중 (부호 +)'}`
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: -10, max: 10,
+            title: { display: true, text: '←  취약성 완화        취약성 가중  →',
+                     font: { size: 18, weight: 'bold' } },
+            grid: { color: ctx => ctx.tick.value === 0 ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.06)' },
+            ticks: { font: { size: 16 }, callback: v => Math.abs(v) }
+          },
+          y: { ticks: { font: { size: 17, weight: '600' } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // ── Tab 3: 순위 차트 ─────────────────────────────────────
+  function rankToColor(t, alpha) {
+    let r, g, b;
+    if (t < 0.5) {
+      r = 239;
+      g = Math.round(68 + (234 - 68) * (t * 2));
+      b = 68;
+    } else {
+      const tt = (t - 0.5) * 2;
+      r = Math.round(234 + (34  - 234) * tt);
+      g = Math.round(234 + (197 - 234) * tt);
+      b = Math.round(68  + (94  - 68)  * tt);
+    }
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function renderRankingChart() {
+    if (!geoData) return;
+    const selVal = document.getElementById('rankingVarSelect').value;
+    const topN   = parseInt(document.getElementById('rankingTopN').value) || 20;
+
+    const all = geoData.features.map(f => {
+      let val = null;
+      if      (selVal === 'vulnerability')       val = f.properties['vulnerability_index'];
+      else if (selVal.startsWith('domain_'))     val = f.properties[selVal];
+      else if (selVal.startsWith('raw_'))        val = f.properties[selVal.slice(4)];
+      return { name: f.properties.__adm || '', label: labelOf(f), value: val };
+    }).filter(d => d.value !== null && !isNaN(d.value));
+
+    all.sort((a, b) => b.value - a.value);
+
+    const chartData = (topN >= all.length)
+      ? all
+      : [...all.slice(0, topN), ...all.slice(-topN).reverse()];
+
+    const total = all.length;
+    const labels = chartData.map(d => d.label);
+    const values = chartData.map(d => d.value);
+    const bgColors = chartData.map(d => {
+      const rank = all.findIndex(a => a.name === d.name);
+      const t    = rank / (total - 1 || 1);
+      return rankToColor(t, 0.78);
+    });
+
+    const wrap = document.getElementById('rankingChartWrap');
+    wrap.style.height = Math.max(460, chartData.length * 34 + 80) + 'px';
+
+    const ctx = document.getElementById('rankingChart').getContext('2d');
+    if (rankingChartInst) rankingChartInst.destroy();
+
+    let label = '값';
+    if      (selVal === 'vulnerability')   label = '환경보건 취약지수';
+    else if (selVal.startsWith('domain_')) label = selVal.replace('domain_', '') + ' 영역 점수';
+    else if (selVal.startsWith('raw_'))    label = selVal.slice(4);
+
+    rankingChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ label, data: values, backgroundColor: bgColors, borderColor: bgColors.map(c => c.replace('0.78', '1')), borderWidth: 1, borderRadius: 4 }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            titleFont: { size: 16, weight: 'bold' },
+            bodyFont: { size: 15 },
+            callbacks: { label: ctx => ` ${Number(ctx.raw).toFixed(2)}` }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: label, font: { size: 18, weight: 'bold' } },
+            ticks: { font: { size: 16 } },
+            grid: { color: 'rgba(0,0,0,0.06)' }
+          },
+          y: { ticks: { font: { size: 17, weight: '600' } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // ── Tab 3: 히트맵 ────────────────────────────────────────
+  function heatColor(t) {
+    let r, g, b;
+    if (t < 0.5) {
+      r = Math.round(34  + (234 - 34)  * (t * 2));
+      g = Math.round(197 + (179 - 197) * (t * 2));
+      b = Math.round(94  + (8   - 94)  * (t * 2));
+    } else {
+      const tt = (t - 0.5) * 2;
+      r = Math.round(234 + (239 - 234) * tt);
+      g = Math.round(179 + (68  - 179) * tt);
+      b = Math.round(8   + (68  - 8)   * tt);
+    }
+    return { r, g, b };
+  }
+  const brightness = (r, g, b) => (r * 299 + g * 587 + b * 114) / 1000;
+
+  function drawHeatmap() {
+    if (!geoData) return;
+    const sortBy  = document.getElementById('heatmapSort').value;
+    const domains = Object.keys(DOMAIN_MAPPING);
+
+    let feats = [...geoData.features];
+    if (sortBy === 'vulnerability') {
+      feats.sort((a, b) => (b.properties['vulnerability_index'] || 0) - (a.properties['vulnerability_index'] || 0));
+    } else {
+      feats.sort((a, b) => (a.properties.__adm || '').localeCompare(b.properties.__adm || ''));
+    }
+
+    const vulVals = feats.map(f => f.properties['vulnerability_index'] || 0);
+    const vulMin = Math.min(...vulVals), vulMax = Math.max(...vulVals);
+
+    const CELL_W = 116, CELL_H = 38, LABEL_W = 150, HDR_H = 78, VULN_W = 138;
+    const cols   = domains.length;
+    const totalW = LABEL_W + cols * CELL_W + VULN_W;
+    const totalH = HDR_H + feats.length * CELL_H;
+
+    const canvas  = document.getElementById('heatmapCanvas');
+    const ctx     = canvas.getContext('2d');
+    canvas.width  = totalW;
+    canvas.height = totalH;
+
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, totalW, totalH);
+    ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, 0, totalW, HDR_H);
+    ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, HDR_H, LABEL_W, totalH - HDR_H);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, HDR_H); ctx.lineTo(totalW, HDR_H); ctx.stroke();
+
+    const sx = LABEL_W + cols * CELL_W;
+    ctx.strokeStyle = 'rgba(180,83,9,0.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx, HDR_H); ctx.lineTo(sx, totalH); ctx.stroke();
+
+    const allCols = [...domains, '종합취약지수'];
+    allCols.forEach((col, i) => {
+      const isVuln = i === domains.length;
+      const cw = isVuln ? VULN_W : CELL_W;
+      const cx = LABEL_W + (isVuln ? cols * CELL_W : i * CELL_W) + cw / 2;
+      ctx.textAlign = 'center';
+      ctx.font      = isVuln ? 'bold 17px ' + UI_FONT : '600 17px ' + UI_FONT;
+      ctx.fillStyle = isVuln ? '#92400e' : '#374151';
+      // 가로 표기 — 셀 폭을 넘으면 가운데서 2줄로 줄바꿈
+      const lines = ctx.measureText(col).width > cw - 10
+        ? [col.slice(0, Math.ceil(col.length / 2)), col.slice(Math.ceil(col.length / 2))]
+        : [col];
+      const lineH = 22;
+      let ty = (HDR_H - lines.length * lineH) / 2 + 18;
+      lines.forEach(ln => { ctx.fillText(ln, cx, ty); ty += lineH; });
+    });
+
+    feats.forEach((feat, ri) => {
+      const nm = labelOf(feat) || '';
+      const y  = HDR_H + ri * CELL_H;
+
+      if (ri % 2 === 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.025)';
+        ctx.fillRect(LABEL_W, y, totalW - LABEL_W, CELL_H);
+      }
+
+      ctx.fillStyle = '#6b7280';
+      ctx.font      = '600 16px ' + UI_FONT;
+      ctx.textAlign = 'right';
+      const lbl = nm.length > 8 ? nm.slice(0, 7) + '…' : nm;
+      ctx.fillText(lbl, LABEL_W - 8, y + CELL_H / 2 + 6);
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(LABEL_W, y); ctx.lineTo(totalW, y); ctx.stroke();
+
+      domains.forEach((domain, ci) => {
+        const raw = feat.properties['domain_' + domain] || 0;
+        const mx  = (DOMAIN_SCORES[domain] || {max:10}).max;
+        const t   = mx > 0 ? Math.min(1, raw / mx) : 0;
+        const { r, g, b } = heatColor(t);
+        const x = LABEL_W + ci * CELL_W;
+        const R = Math.round(r * 0.8 + 255 * 0.2);
+        const G = Math.round(g * 0.8 + 255 * 0.2);
+        const B = Math.round(b * 0.8 + 255 * 0.2);
+        ctx.fillStyle = `rgb(${R},${G},${B})`;
+        ctx.fillRect(x + 1, y + 1, CELL_W - 2, CELL_H - 2);
+        ctx.fillStyle = brightness(R, G, B) > 155 ? '#1f2937' : '#f9fafb';
+        ctx.font      = '600 15px ' + UI_FONT;
+        ctx.textAlign = 'center';
+        ctx.fillText(raw.toFixed(1), x + CELL_W / 2, y + CELL_H / 2 + 6);
+      });
+
+      const vi     = feat.properties['vulnerability_index'] || 0;
+      const viNorm = vulMax > vulMin ? (vi - vulMin) / (vulMax - vulMin) : 0;
+      const { r, g, b } = heatColor(viNorm);
+      const vx = LABEL_W + cols * CELL_W;
+      const VR = Math.round(r * 0.85 + 255 * 0.15);
+      const VG = Math.round(g * 0.85 + 255 * 0.15);
+      const VB = Math.round(b * 0.85 + 255 * 0.15);
+      ctx.fillStyle = `rgb(${VR},${VG},${VB})`;
+      ctx.fillRect(vx + 1, y + 1, VULN_W - 2, CELL_H - 2);
+      ctx.fillStyle = brightness(VR, VG, VB) > 155 ? '#1f2937' : '#f9fafb';
+      ctx.font      = 'bold 16px ' + UI_FONT;
+      ctx.textAlign = 'center';
+      ctx.fillText(vi.toFixed(2), vx + VULN_W / 2, y + CELL_H / 2 + 6);
+    });
+  }
+
+  // ── 엑셀 내보내기 ────────────────────────────────────────
+  function exportExcel() {
+    if (!geoData || typeof XLSX === 'undefined') {
+      alert('데이터 로딩 중이거나 SheetJS 라이브러리를 불러오지 못했습니다.');
+      return;
+    }
+    const domains = Object.keys(DOMAIN_MAPPING);
+    const today   = new Date().toISOString().slice(0, 10);
+
+    // 시트 1: 영역 점수 (행정동명 대신 ADM 코드)
+    const headers1 = ['ADM 코드', ...domains.map(d => `${d} (점수)`)];
+    const rows1 = geoData.features.map(f => {
+      const p = f.properties;
+      return [
+        p.__adm || '',
+        ...domains.map(d => {
+          const v = p['domain_' + d];
+          return (v !== null && v !== undefined && !isNaN(v)) ? parseFloat(v.toFixed(3)) : '';
+        })
+      ];
+    }).sort((a, b) => (a[0] || '').localeCompare(b[0] || ''));
+
+    const ws1 = XLSX.utils.aoa_to_sheet([headers1, ...rows1]);
+    ws1['!cols']   = [{ wch: 12 }, ...domains.map(() => ({ wch: 18 }))];
+    ws1['!freeze'] = { xSplit: 1, ySplit: 1 };
+
+    // 시트 2: 환경보건 취약지수 (높은 순)
+    const headers2 = ['순위', 'ADM 코드', '환경보건 취약지수 (0~100)', '산출 원값'];
+    const rows2 = geoData.features.map(f => {
+      const p  = f.properties;
+      const vi = p['vulnerability_index'];
+      return {
+        code: p.__adm || '',
+        vi: (vi !== null && vi !== undefined && !isNaN(vi)) ? vi : null,
+        raw: p.__vi_raw
+      };
+    }).filter(r => r.vi !== null)
+      .sort((a, b) => b.vi - a.vi)
+      .map((r, idx) => [
+        idx + 1, r.code, parseFloat(r.vi.toFixed(4)),
+        (r.raw !== null && r.raw !== undefined && !isNaN(r.raw)) ? parseFloat(r.raw.toFixed(4)) : ''
+      ]);
+
+    const ws2 = XLSX.utils.aoa_to_sheet([headers2, ...rows2]);
+    ws2['!cols']   = [{ wch: 6 }, { wch: 12 }, { wch: 24 }, { wch: 14 }];
+    ws2['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+    // 시트 3: 유의사항 (산출 조건을 산출물에 같이 남김)
+    const notice = [
+      ['항목', '내용'],
+      ['산출식', viFormulaText()],
+      ['원 모델식', '환경압력 × (환경수준 + 환경보건수준) × (민감인구 + 사회경제적수준)'],
+      ['사용 영역', domains.join(', ') + ` (${domains.length}개)`],
+      ['제외 영역', VI_MISSING.length
+        ? VI_MISSING.map(b => b.label + '(' + b.domains.join('/') + ')').join(', ')
+        : '없음'],
+      ['취약지수 범위', `${VI_DISPLAY.min}~${VI_DISPLAY.max} (55개 행정동 내 상대지수)`],
+      ['행정동 표기', 'ADM 코드 (원본 수록 순서 고정 일련번호, 취약지수 순위와 무관)'],
+      ['유의 1', '비공개 자료인 환경수준·환경보건수준을 제외한 축소 모델이라 원 모델과 수치·순위가 다릅니다.'],
+      ['유의 2', '결측 블록을 0으로 곱하면 전 행정동 취약지수가 0이 되므로 해당 항을 생략했습니다.'],
+      ['유의 3', '상대지수이므로 절대적 위험 수준이나 타 지역·타 연도 비교에는 사용할 수 없습니다.'],
+      ['용도', '모델 구동 방식 시연용 (포트폴리오)'],
+      ['생성일', today]
+    ];
+    const ws3 = XLSX.utils.aoa_to_sheet(notice);
+    ws3['!cols'] = [{ wch: 16 }, { wch: 92 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws1, '영역 점수');
+    XLSX.utils.book_append_sheet(wb, ws2, '환경보건 취약지수');
+    XLSX.utils.book_append_sheet(wb, ws3, '유의사항');
+    XLSX.writeFile(wb, `울산_환경보건취약지수_${today}.xlsx`);
+  }
+
+  // ── 차트 캔버스 PNG 저장 ─────────────────────────────────
+  function saveCanvasAsPng(canvasId, filename) {
+    const src = document.getElementById(canvasId);
+    if (!src) return;
+    const out = document.createElement('canvas');
+    out.width  = src.width;
+    out.height = src.height;
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(src, 0, 0);
+
+    const link    = document.createElement('a');
+    link.download = filename + '_' + new Date().toISOString().slice(0, 10) + '.jpg';
+    link.href     = out.toDataURL('image/jpeg', 0.93);
+    link.click();
+  }
+
+  // ── 산출식·유의사항 텍스트를 화면에 반영 ────────────────
+  function applyNoticeText() {
+    const f = document.getElementById('viFormulaText');
+    if (f) f.innerHTML = '※ 산출식: <b>' + viFormulaText() + '</b>';
+
+    const sc = document.getElementById('viScaleText');
+    if (sc) {
+      let html = `※ 0~100 상대지수 · 녹색(낮음) → 황색(중간) → 적색(높음)`;
+      if (VI_MISSING.length) {
+        html += `<div style="margin-top:6px; color:#b45309;">※ <b>` +
+                VI_MISSING.map(b => b.label).join('·') +
+                `</b> 블록 제외 (자료 미포함) — 원 모델과 수치·순위 상이</div>`;
+      }
+      sc.innerHTML = html;
+    }
+  }
+
+  // ── 영역 select 동적 채우기 ──────────────────────────────
+  function populateDomainSelect() {
+    const sel = document.getElementById('domainSelect');
+    const opts = Object.keys(DOMAIN_MAPPING).map(d => {
+      const s = DOMAIN_SCORES[d] || { min: 1, max: 10 };
+      return `<option value="${d}">${d} (${s.min}~${s.max}점)</option>`;
+    }).join('');
+    sel.innerHTML = `<option value="">-- 영역 선택 --</option>${opts}`;
+  }
+
+  // ── 초기화 ───────────────────────────────────────────────
+  async function init() {
+    const res = await fetch(GEOJSON_URL);
+    geoData   = await res.json();
+
+    // GeoJSON 메타데이터에서 도메인 매핑·점수범위 동적 로드
+    if (geoData._domain_mapping) {
+      DOMAIN_MAPPING = geoData._domain_mapping;
+      console.log("✓ 도메인 매핑 동적 로드:",
+        Object.fromEntries(Object.entries(DOMAIN_MAPPING).map(([k, v]) => [k, v.length + "개"])));
+    } else {
+      console.warn("⚠ GeoJSON에 _domain_mapping이 없습니다. Python 스크립트를 최신 버전으로 재실행하세요.");
+    }
+    if (geoData._domain_scores) DOMAIN_SCORES = geoData._domain_scores;
+    if (geoData._variable_signs) {
+      VARIABLE_SIGNS = geoData._variable_signs;
+      const negs = Object.keys(VARIABLE_SIGNS).filter(k => VARIABLE_SIGNS[k] === 0);
+      console.log(`✓ 변수 부호 로드: NEGATIVE ${negs.length}개`, negs);
+    } else {
+      console.warn("⚠ GeoJSON에 _variable_signs가 없습니다. Python 스크립트를 재실행하세요.");
+    }
+
+    // 진단: 원 모델 5개 도메인 중 실제로 존재하는 것 (라벨 표기차 조기 발견)
+    const EXPECTED = ['환경압력','환경수준','환경보건수준','민감인구','사회경제적수준'];
+    const absent = EXPECTED.filter(d => !DOMAIN_MAPPING[d]);
+    if (absent.length) {
+      console.warn(`⚠ 원 모델 대비 누락 도메인 ${absent.length}개: ${absent.join(', ')}
+` +
+        `   → 해당 항을 생략한 축소 산출식으로 자동 전환합니다. ` +
+        `단순 라벨 표기차라면 엑셀 1행을 확인하세요. 현재 매핑 키:`, Object.keys(DOMAIN_MAPPING));
+    }
+    // 진단: 유효 행정동 수 (엑셀의 동 수와 같아야 함. 다르면 min/max 기준이 달라져 전체 값이 어긋남)
+    //   ※ 비식별 처리로 GeoJSON에 행정동명(ADM_NM)이 없으므로 이름 유무는 조건에서 제외하고
+    //     "숫자 지표를 하나라도 가진 feature"만 센다.
+    const nValid = geoData.features.filter(f =>
+      f.properties &&
+      Object.keys(f.properties).some(k => typeof f.properties[k] === 'number' && !Number.isNaN(f.properties[k]))
+    ).length;
+    console.log(`✓ GeoJSON 행정동(feature) 수: ${geoData.features.length} (데이터 보유: ${nValid}) — 엑셀의 동 수와 일치하는지 확인`);
+
+    assignAdmCodes();            // 행정동명 비식별 — 코드부터 부여 (수록 순서 고정)
+    normalizeAllVariables();
+    calculateDomainScores();
+    populateDomainSelect();
+    applyNoticeText();           // 산출식·축소 안내를 화면에 반영
+
+    const varSelect        = document.getElementById("varSelect");
+    const domainSelect     = document.getElementById("domainSelect");
+    const exportBtn        = document.getElementById("exportBtn");
+    const vulnerabilityBtn = document.getElementById("vulnerabilityBtn");
+    const normalizeToggle  = document.getElementById("normalizeToggle");
+    const normalizeStatus  = document.getElementById("normalizeStatus");
+    const chartBtn         = document.getElementById("chartBtn");
+    const closeChartBtn    = document.getElementById("closeChartModal");
+    const excelBtn         = document.getElementById("excelBtn");
+
+    const vars = populateVarsFromGeoJSON(geoData);
+    if (!vars.length) { varSelect.innerHTML = `<option value="">(표시할 변수가 없습니다)</option>`; return; }
+    varSelect.innerHTML = vars.map(v => `<option value="${v}">${v}</option>`).join("");
+    const defaultVar    = vars.includes("인구밀도(명/㎢)") ? "인구밀도(명/㎢)" : vars[0];
+    varSelect.value     = defaultVar;
+    renderVariable(defaultVar);
+
+    varSelect.addEventListener("change", () => {
+      domainSelect.value = "";
+      renderVariable(varSelect.value);
+    });
+    domainSelect.addEventListener("change", () => {
+      if (domainSelect.value) renderDomain(domainSelect.value);
+    });
+    vulnerabilityBtn.addEventListener("click", () => {
+      domainSelect.value = "";
+      renderVulnerability();
+    });
+    normalizeToggle.addEventListener("click", () => {
+      if (currentMode !== 'variable') return;
+      isNormalized = !isNormalized;
+      normalizeToggle.classList.toggle("active");
+      normalizeStatus.textContent = isNormalized ? "ON" : "OFF";
+      renderVariable(varSelect.value);
+    });
+    exportBtn.addEventListener("click", exportMapAsImage);
+    excelBtn?.addEventListener("click", exportExcel);
+
+    chartBtn.addEventListener("click", openChartModal);
+    closeChartBtn.addEventListener("click", closeChartModal);
+    document.getElementById('chartModal').addEventListener('click', e => {
+      if (e.target === document.getElementById('chartModal')) closeChartModal();
+    });
+
+    document.querySelectorAll('.chart-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.getElementById('tab-' + tab)?.classList.add('active');
+        renderActiveTab(tab);
+      });
+    });
+
+    ['districtA', 'districtB'].forEach(id =>
+      document.getElementById(id)?.addEventListener('change', renderCompareChart));
+    document.getElementById('detailDistrict')?.addEventListener('change', renderDetailChart);
+    ['rankingVarSelect', 'rankingTopN'].forEach(id =>
+      document.getElementById(id)?.addEventListener('change', renderRankingChart));
+    document.getElementById('heatmapSort')?.addEventListener('change', drawHeatmap);
+
+    document.getElementById('saveCompareChart')?.addEventListener('click', () =>
+      saveCanvasAsPng('compareChart', '울산_영역비교_바차트'));
+    document.getElementById('saveDetailChart')?.addEventListener('click', () =>
+      saveCanvasAsPng('detailChart', '울산_세부변수_기여도'));
+    document.getElementById('saveRankingChart')?.addEventListener('click', () =>
+      saveCanvasAsPng('rankingChart', '울산_순위차트'));
+    document.getElementById('saveHeatmap')?.addEventListener('click', () =>
+      saveCanvasAsPng('heatmapCanvas', '울산_영역히트맵'));
+  }
+
+  init();
+  </script>
+</body>
+</html>
