@@ -303,7 +303,7 @@
       <div class="header-inner">
         <div class="header-text">
           <h1>지역별 환경보건 취약지수 시각화 맵</h1>
-          <p>행정동별 지표를 선택해 단계형 색상 지도로 확인합니다. <b>행정동명은 ADM 코드로 비식별 표기됩니다.</b></p>
+          <p>행정동별 지표를 선택해 단계형 색상 지도로 확인합니다. <b>모든 수치는 시연용 가상 데이터이며, 행정동명은 ADM 코드로 비식별 표기됩니다.</b></p>
         </div>
         <a class="header-logo" href="https://www.uri.re.kr/" target="_blank" rel="noopener">
           <img src="./assets/logo.png" alt="울산연구원 로고" />
@@ -353,17 +353,23 @@
         <div class="panel-card notice-card">
           <div class="row" style="margin-bottom:6px;"><span class="pill pill-warn">유의</span></div>
           <div class="notice-block">
-            <div class="notice-h">1. 행정동명 → ADM 코드 표기</div>
+            <div class="notice-h">1. 가상 데이터</div>
             <div class="notice-b">
-              본 화면은 <b>포트폴리오 공개용</b>이라 실제 행정동명을 노출하지 않고
-              <code>ADM-01</code> ~ <code>ADM-55</code> 코드로 대체했습니다.
-              코드는 원본 데이터 수록 순서로 부여한 <b>고정 일련번호</b>이며,
-              취약지수 순위·지역 위치와는 무관합니다. 지도상 경계는 실제 형상 그대로이므로
-              위치를 아는 사람은 식별이 가능합니다.
+              본 화면은 <b>포트폴리오 공개용</b>으로, 모든 지표 값은 실제 자료가 아닌
+              <b>무작위로 생성한 가상 데이터</b>입니다. 지도 경계만 실제 행정동 형상을 사용했으며,
+              표시되는 수치·순위는 실제 지역 현황과 <b>무관</b>합니다.
             </div>
           </div>
           <div class="notice-block">
-            <div class="notice-h">2. 5개 영역 중 3개만 사용</div>
+            <div class="notice-h">2. 행정동명 → ADM 코드 표기</div>
+            <div class="notice-b">
+              행정동명 대신 <code>ADM-01</code> ~ <code>ADM-55</code> 코드로 표기했습니다.
+              코드는 데이터 수록 순서로 부여한 <b>고정 일련번호</b>이며,
+              취약지수 순위·지역 위치와는 무관합니다.
+            </div>
+          </div>
+          <div class="notice-block">
+            <div class="notice-h">3. 5개 영역 중 3개만 사용</div>
             <div class="notice-b">
               원 모델은 <b>환경압력·환경수준·환경보건수준·민감인구·사회경제적수준</b> 5개 영역이나,
               이 버전은 비공개 자료인 <b>환경수준·환경보건수준</b>(환경상태 블록)을 제외한
@@ -373,7 +379,7 @@
             </div>
           </div>
           <div class="notice-block">
-            <div class="notice-h">3. 상대지수</div>
+            <div class="notice-h">4. 상대지수</div>
             <div class="notice-b">
               취약지수는 55개 행정동 내 <b>상대 비교값(0~100)</b>입니다.
               최저 동이 0, 최고 동이 100이 되도록 재조정한 값이라
@@ -401,7 +407,7 @@
     <div class="footer">
       지역별 환경보건 취약지수 시각화 맵 · 정적 웹(HTML/JS) · Leaflet 기반
       <div style="margin-top:6px; font-size:11px; color:#9ca3af;">
-        포트폴리오 시연용 · 행정동명 비식별(ADM 코드) · 3개 영역 축소 모델 · 상대지수(0~100)
+        포트폴리오 시연용 · 가상 데이터 · 행정동명 비식별(ADM 코드) · 3개 영역 축소 모델 · 상대지수(0~100)
       </div>
     </div>
   </div>
@@ -574,8 +580,11 @@
 
   // ── 지도 초기화 ─────────────────────────────────────────────
   const map  = L.map("map").setView([35.55, 129.30], 11);
-  const base = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; OpenStreetMap &copy; CARTO'
+  // CARTO 타일이 API 키 필수로 바뀌어 Esri 회색 배경지도로 교체 (키 불필요)
+  const base = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    maxNativeZoom: 16,
+    maxZoom: 19,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
   }).addTo(map);
 
   // ── 유틸 ────────────────────────────────────────────────────
@@ -1500,7 +1509,8 @@
         ? VI_MISSING.map(b => b.label + '(' + b.domains.join('/') + ')').join(', ')
         : '없음'],
       ['취약지수 범위', `${VI_DISPLAY.min}~${VI_DISPLAY.max} (55개 행정동 내 상대지수)`],
-      ['행정동 표기', 'ADM 코드 (원본 수록 순서 고정 일련번호, 취약지수 순위와 무관)'],
+      ['데이터', '무작위로 생성한 가상 데이터 (실제 지역 현황과 무관, 경계만 실제 행정동 형상)'],
+      ['행정동 표기', 'ADM 코드 (데이터 수록 순서 고정 일련번호, 취약지수 순위와 무관)'],
       ['유의 1', '비공개 자료인 환경수준·환경보건수준을 제외한 축소 모델이라 원 모델과 수치·순위가 다릅니다.'],
       ['유의 2', '결측 블록을 0으로 곱하면 전 행정동 취약지수가 0이 되므로 해당 항을 생략했습니다.'],
       ['유의 3', '상대지수이므로 절대적 위험 수준이나 타 지역·타 연도 비교에는 사용할 수 없습니다.'],
